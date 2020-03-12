@@ -66,16 +66,13 @@ def build_game(canvas):
                       fire_speed_column)
     coroutines.append(shoot_fire)
 
-    while True:
+    while coroutines:
 
         for coroutine in coroutines.copy():
             try:
                 coroutine.send(None)
-                canvas.refresh()
             except StopIteration:
                 coroutines.remove(coroutine)
 
+        canvas.refresh()
         time.sleep(TIC_TIMEOUT)
-
-        if len(coroutines) == 0:
-            break
