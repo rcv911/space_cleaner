@@ -136,9 +136,8 @@ async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
         draw_frame(canvas, row, column, garbage_frame, negative=True)
         obstacles.pop(0)
 
-        if obstacles_in_last_collisions:
-            obstacles_in_last_collisions.pop(0)
-            return
+        # for obst in obstacles_in_last_collisions:
+        #     return obst
 
         row += speed
 
@@ -148,9 +147,7 @@ async def fill_orbit_with_garbage(canvas, frames, max_column, left_space):
     while True:
         column = random.randint(0, max_column - left_space)
 
-        obst = show_obstacles(canvas, obstacles)
         trash = fly_garbage(canvas, column, random.choice(frames), speed=0.5)
-        coroutines.append(obst)
         coroutines.append(trash)
 
         await sleep(random.randint(0, 30))
@@ -225,13 +222,12 @@ def build_game(canvas):
                              fire_speed_row, fire_speed_column)
     coroutines.append(ship)
 
-    # shoot_fire = fire(canvas, center_row, center_col, fire_speed_row,
-    #                   fire_speed_column)
-    # coroutines.append(shoot_fire)
-
     fill = fill_orbit_with_garbage(canvas, garbage_frames, max_column,
                                    left_space)
     coroutines.append(fill)
+
+    obst = show_obstacles(canvas, obstacles)
+    coroutines.append(obst)
 
     # game engine
     custom_event_loop(canvas)
