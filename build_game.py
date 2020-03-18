@@ -3,23 +3,60 @@ import curses
 import random
 from curses_tools import get_frame_size
 from sky_animation import blink
-# from spaceship_animation import animate_spaceship
-from space_garbage import fly_garbage
 from sleep import sleep
 import asyncio
 from curses_tools import draw_frame, read_controls
 from physics import update_speed
-from fire_animation import fire
+from obstacles import Obstacle, show_obstacles
+# from spaceship_animation import animate_spaceship
+# from space_garbage import fly_garbage
+# from fire_animation import fire
 
 
 TIC_TIMEOUT = 0.1
-# coroutines = list()
 
 
 def load_frame(file):
     with open(file, 'r') as f:
         frame = f.read()
     return frame
+
+
+async def fire(canvas, start_row, start_column, rows_speed=-0.3,
+               columns_speed=0):
+    """Display animation of gun shot. Direction and speed can be specified."""
+
+    row, column = start_row, start_column
+
+    canvas.addstr(round(row), round(column), '*')
+    await asyncio.sleep(0)
+
+    canvas.addstr(round(row), round(column), 'O')
+    await asyncio.sleep(0)
+    canvas.addstr(round(row), round(column), ' ')
+
+    row += rows_speed
+    column += columns_speed
+
+    symbol = '-' if columns_speed else '|'
+
+    rows, columns = canvas.getmaxyx()
+    max_row, max_column = rows - 1, columns - 1
+
+    curses.beep()
+
+    while 0 < row < max_row and 0 < column < max_column:
+        canvas.addstr(round(row), round(column), symbol)
+        await asyncio.sleep(0)
+        canvas.addstr(round(row), round(column), ' ')
+
+        for obst in obstacles:
+            if obst.has_collision(row, column):
+                obstacles_in_last_collisions.append(obst)
+                return
+
+        row += rows_speed
+        column += columns_speed
 
 
 async def animate_spaceship(canvas, row, column, space_ship_center_col,
@@ -66,9 +103,10 @@ async def run_spaceship(canvas, row, column, space_ship_center_col,
         elif column + space_ship_center_col <= speed_column:
             column += speed_column
 
-        shoot_fire = fire(canvas, row, column,
-                          fire_speed_row, fire_speed_column)
-        coroutines.append(shoot_fire)
+        if space_pressed:
+            shoot_fire = fire(canvas, row, column,
+                              fire_speed_row, fire_speed_column)
+            coroutines.append(shoot_fire)
 
         for frame in frames:
             draw_frame(canvas, row, column - space_ship_center_col, frame)
@@ -77,18 +115,50 @@ async def run_spaceship(canvas, row, column, space_ship_center_col,
                        negative=True)
 
 
+async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
+    """
+    Animate garbage, flying from top to bottom. Сolumn position will stay
+    same, as specified on start.
+    """
+    rows_number, columns_number = canvas.getmaxyx()
+
+    column = max(column, 0)
+    column = min(column, columns_number - 1)
+
+    row = 0
+    garbage_row, garbage_column = get_frame_size(garbage_frame)
+
+    while row < rows_number:
+
+        draw_frame(canvas, row, column, garbage_frame)
+        obstacles.append(Obstacle(row, column, garbage_row, garbage_column))
+        await asyncio.sleep(0)
+        draw_frame(canvas, row, column, garbage_frame, negative=True)
+        obstacles.pop(0)
+
+        if obstacles_in_last_collisions:
+            obstacles_in_last_collisions.pop(0)
+            return
+
+        row += speed
+
+
 async def fill_orbit_with_garbage(canvas, frames, max_column, left_space):
 
     while True:
         column = random.randint(0, max_column - left_space)
+
+        obst = show_obstacles(canvas, obstacles)
         trash = fly_garbage(canvas, column, random.choice(frames), speed=0.5)
+        coroutines.append(obst)
         coroutines.append(trash)
-        await sleep(random.randint(0, 10))
+
+        await sleep(random.randint(0, 30))
 
 
 def build_game(canvas):
     """ main draw """
-    global coroutines
+    global coroutines, obstacles, obstacles_in_last_collisions
     # sky config
     star_qty = 113
     left_space = 2
@@ -123,6 +193,9 @@ def build_game(canvas):
     garbage_frames = list()
     for file in garbage_files:
         garbage_frames.append(load_frame(file))
+
+    obstacles = list()
+    obstacles_in_last_collisions = list()
 
     canvas.nodelay(True)
     canvas.border()
